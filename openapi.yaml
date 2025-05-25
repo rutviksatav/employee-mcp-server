@@ -1,0 +1,202 @@
+swagger: '2.0'
+info:
+  title: Leave Management System
+  description: |
+    MCP-enabled Leave Management System providing:
+    - Leave balance checking
+    - Leave application submission
+    - Leave history tracking
+    Using Model Context Protocol (MCP) with SSE transport.
+    
+    This system allows employees to:
+    1. Check their leave balance
+    2. Submit leave applications
+    3. View their leave history
+    4. Cancel pending leave applications
+  version: 1.0.0
+host: mcptest1-g4ashyg0h5arehcj.eastus-01.azurewebsites.net
+basePath: /
+schemes:
+  - https
+definitions:
+  QueryResponse:
+    type: object
+    properties:
+      jsonrpc:
+        type: string
+        example: "2.0"
+      id:
+        type: string
+        example: "1"
+      method:
+        type: string
+        example: "tools/call"
+      params:
+        type: object
+      result:
+        type: object
+      error:
+        type: object
+        properties:
+          code:
+            type: integer
+          message:
+            type: string
+    example:
+      jsonrpc: "2.0"
+      id: "1"
+      method: "get_leave_balance"
+      result:
+        balance: 10
+        status: "success"
+  LeaveBalance:
+    type: object
+    properties:
+      employee_id:
+        type: string
+        description: Employee ID
+        example: "E001"
+      balance:
+        type: integer
+        description: Number of leave days remaining
+        example: 10
+    example:
+      employee_id: "E001"
+      balance: 10
+  LeaveApplication:
+    type: object
+    properties:
+      employee_id:
+        type: string
+        description: Employee ID
+        example: "E001"
+      leave_dates:
+        type: array
+        items:
+          type: string
+          format: date
+        description: List of dates for leave application
+        example: ["2024-05-20", "2024-05-21"]
+      reason:
+        type: string
+        description: Reason for leave
+        example: "Personal leave"
+    example:
+      employee_id: "E001"
+      leave_dates: ["2024-05-20", "2024-05-21"]
+      reason: "Personal leave"
+  LeaveHistory:
+    type: object
+    properties:
+      employee_id:
+        type: string
+        description: Employee ID
+        example: "E001"
+      history:
+        type: array
+        items:
+          type: object
+          properties:
+            date:
+              type: string
+              format: date
+            status:
+              type: string
+              enum: ["approved", "pending", "rejected", "cancelled"]
+        description: List of leave records with status
+    example:
+      employee_id: "E001"
+      history: [
+        {
+          "date": "2024-05-20",
+          "status": "approved"
+        }
+      ]
+paths:
+  /sse:
+    get:
+      summary: MCP Server Actions for Leave Management
+      parameters:
+        - in: query
+          name: sessionId
+          type: string
+          required: false
+          description: Session identifier for maintaining conversation state
+      produces:
+        - application/json
+        - text/event-stream
+      responses:
+        '200':
+          description: Successful SSE connection established
+          schema:
+            $ref: '#/definitions/QueryResponse'
+        '201':
+          description: Created and will follow callback
+        '400':
+          description: Invalid request parameters
+        '500':
+          description: Internal server error
+      operationId: LeaveManagementSystem
+      tags:
+        - Agentic
+        - McpSse
+  /messages:
+    post:
+      summary: Handle MCP Messages for Leave Management
+      parameters:
+        - in: query
+          name: sessionId
+          type: string
+          required: true
+          description: Session identifier from SSE connection
+        - in: body
+          name: message
+          required: true
+          schema:
+            type: object
+            properties:
+              jsonrpc:
+                type: string
+                example: "2.0"
+              id:
+                type: string
+              method:
+                type: string
+                example: "tools/call"
+              params:
+                type: object
+                properties:
+                  name:
+                    type: string
+                    enum:
+                      - get_leave_balance
+                      - apply_leave
+                      - get_leave_history
+                      - cancel_leave
+                  arguments:
+                    type: object
+            required:
+              - jsonrpc
+              - method
+              - params
+      produces:
+        - application/json
+      responses:
+        '200':
+          description: Message processed successfully
+          schema:
+            $ref: '#/definitions/QueryResponse'
+        '400':
+          description: Invalid request format or parameters
+        '401':
+          description: Invalid or expired session
+        '404':
+          description: Tool not found
+        '500':
+          description: Internal server error
+      operationId: ProcessLeaveManagement
+      tags:
+        - Agentic
+        - McpMessages
+securityDefinitions: {}
+security: []
